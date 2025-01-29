@@ -1,0 +1,5 @@
+PROJECT_PATH = "/Users/iwakitakuma/study/cell_lineage"
+HOME_PATH = f"{PROJECT_PATH}/src"
+DATA_PATH = f"{HOME_PATH}/data"
+OUTPUT_PATH = f"{HOME_PATH}/output"
+NPY_BIN_DIR = "npy"

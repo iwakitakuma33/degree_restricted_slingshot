@@ -11,11 +11,18 @@ import pyslingshot.img_util as img_util
 
 
 # adata = cs.hf.read(
-#     "/Users/iwakitakuma/study/data/LARRY_MultiTimeClone_Later_FullSpace0_t*2*4*6_adata_with_transition_map.h5ad"
+#     "/Users/iwakitakuma/study/degree_restricted_slingshot/src/data/cospar/data.h5ad"
 # )
 # data = adata.obsm["X_emb"]
-# data = np.load("/Users/iwakitakuma/study/cell_lineage/src/data/MOSCOT/x_umap_rna_f.npy")
-data = np.load("/Users/iwakitakuma/study/cell_lineage/src/data/scSTEM/data.npy")
+# data = np.load(
+#     "/Users/iwakitakuma/study/degree_restricted_slingshot/src/data/MOSCOT/data.npy"
+# )
+# data = np.load(
+#     "/Users/iwakitakuma/study/degree_restricted_slingshot/src/data/scSTEM/data.npy"
+# )
+data = np.load(
+    "/Users/iwakitakuma/study/degree_restricted_slingshot/src/data/monocle/data.npy"
+)
 
 
 X, Y = data[:, 0], data[:, 1]

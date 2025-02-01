@@ -35,27 +35,26 @@ def scale_to_range(x, a=0, b=1):
     return ((x - x.min()) / (x.max() - x.min())) * (b - a) + a
 
 
-def restricted_minimum_spanning_tree(csgraph: npt.NDArray[np.float64]) -> csr_matrix:
-    # 頂点集合の定義
-    V = range(len(csgraph))
+def restricted_minimum_spanning_tree(csgraph):
+    V = range(len(csgraph))  # 頂点集合
+    E = [(i, j) for i in V for j in V if i < j and csgraph[i, j] > 0]  # 辺集合
+    phi = {(i, j): csgraph[i, j] for (i, j) in E}  # 重み
 
-    # 辺集合とその重みの定義
-    E = []
-    d = {}
-    for i in V:
-        for j in V:
-            if i < j and csgraph[i][j] > 0:
-                E.append((i, j))
-                d[(i, j)] = csgraph[i][j]
-
-    # モデルの作成
+    # モデル作成
     m = gp.Model()
-    m.Params.OutputFlag = 0
-    # 変数の定義
-    x = m.addVars(E, vtype=GRB.BINARY, name="x")
 
-    # 目的関数の設定
-    m.setObjective(gp.quicksum(d[e] * x[e] for e in E), GRB.MINIMIZE)
+    # 変数定義
+    x = m.addVars(E, vtype=GRB.BINARY, name="x")
+    y = m.addVars(
+        [(i, j, k) for (i, j) in E for k in V] + [(j, i, k) for (i, j) in E for k in V],
+        vtype=GRB.BINARY,
+        name="y",
+    )
+    # 目的関数: 重みの総和を最小化
+    m.setObjective(gp.quicksum(phi[i, j] * x[i, j] for (i, j) in E), GRB.MINIMIZE)
+
+    # 制約1: MST の辺数は n - 1
+    m.addConstr(gp.quicksum(x[i, j] for (i, j) in E) == len(V) - 1, "edges_count")
 
     # 変数の二値制約
     for e in E:
@@ -66,46 +65,24 @@ def restricted_minimum_spanning_tree(csgraph: npt.NDArray[np.float64]) -> csr_ma
         m.addConstr(gp.quicksum(x[e] for e in E if i in e) <= 3, f"c2_{i}")
         m.addConstr(gp.quicksum(x[e] for e in E if i in e) >= 1, f"deg_{i}_min")
 
-    # # 制約の追加
-    m.addConstr(gp.quicksum(x[e] for e in E) == len(V) - 1, "c1")
+    for i, j in E:
+        for k in V:
+            m.addConstr(y[i, j, k] + y[j, i, k] == x[i, j], f"y_flow_{i}_{j}_{k}")
 
-    def subtour_elimination(model, where):
-        if where == GRB.Callback.MIPSOL:
-            vals = model.cbGetSolution(model._x)
-            edges = [(i, j) for i, j in model._x.keys() if vals[i, j] > 0.5]
-
-            G = nx.Graph()
-            G.add_edges_from(edges)
-            components = list(nx.connected_components(G))
-            if len(components) > 1:
-                for component in components:
-                    if len(component) < len(V):
-                        component_list = list(component)
-                        model.cbLazy(
-                            gp.quicksum(
-                                x[i, j]
-                                for i in component_list
-                                for j in component_list
-                                if i < j and (i, j) in E
-                            )
-                            <= len(component_list) - 1
-                        )
-
-    # コールバック関数を設定
-    m._x = x
-    m.Params.lazyConstraints = 1
-    m.optimize(subtour_elimination)
+    # 制約3: フロー保存制約 (flow conservation)
+    for i, j in E:
+        m.addConstr(
+            gp.quicksum(y[i, k, j] for k in V if k != i and k != j) + x[i, j] == 1,
+            f"flow_conservation_{i}_{j}",
+        )
+    m.optimize()
 
     if m.Status != GRB.OPTIMAL:
         raise Exception("Optimal solution not found!")
+    mst_edges = [(i, j) for (i, j) in E if x[i, j].X > 0.5]
 
-    # 最小全域木の辺を取得
-    mst_edges = [(i, j) for i, j in E if x[i, j].X > 0.5]
-
-    # 最小全域木の隣接行列を構築
     mst_matrix = np.zeros_like(csgraph)
     for i, j in mst_edges:
         mst_matrix[i, j] = csgraph[i, j]
 
-    # csr_matrix に変換して返す
     return csr_matrix(mst_matrix)

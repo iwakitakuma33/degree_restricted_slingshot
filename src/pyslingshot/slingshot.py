@@ -48,7 +48,9 @@ class Slingshot:
         """
         self.is_restricted = is_restricted
         if isinstance(data, AnnData):
-            assert celltype_key is not None, "Must provide celltype key if data is an AnnData object"
+            assert (
+                celltype_key is not None
+            ), "Must provide celltype key if data is an AnnData object"
             cluster_labels = data.obs[celltype_key]
             if isint(cluster_labels.iloc[0]):
                 cluster_max = cluster_labels.max()
@@ -57,16 +59,23 @@ class Slingshot:
                 cluster_max = len(np.unique(cluster_labels))
 
                 self.cluster_label_indices = np.array(
-                    [np.where(np.unique(cluster_labels) == label)[0][0] for label in cluster_labels]
+                    [
+                        np.where(np.unique(cluster_labels) == label)[0][0]
+                        for label in cluster_labels
+                    ]
                 )
             else:
                 raise ValueError("Unexpected cluster label dtype.")
             cluster_labels_onehot = np.zeros((cluster_labels.shape[0], cluster_max + 1))
-            cluster_labels_onehot[np.arange(cluster_labels.shape[0]), self.cluster_label_indices] = 1
+            cluster_labels_onehot[
+                np.arange(cluster_labels.shape[0]), self.cluster_label_indices
+            ] = 1
 
             data = data.obsm[obsm_key]
         else:
-            assert cluster_labels_onehot is not None, "Must provide cluster labels if data is not an AnnData object"
+            assert (
+                cluster_labels_onehot is not None
+            ), "Must provide cluster labels if data is not an AnnData object"
             cluster_labels = self.cluster_labels_onehot.argmax(axis=1)
         self.data = data
         self.cluster_labels_onehot = cluster_labels_onehot
@@ -74,7 +83,10 @@ class Slingshot:
         self.num_clusters = self.cluster_label_indices.max() + 1
         self.start_node = start_node
         self.end_nodes = [] if end_nodes is None else end_nodes
-        cluster_centres = [data[self.cluster_label_indices == k].mean(axis=0) for k in range(self.num_clusters)]
+        cluster_centres = [
+            data[self.cluster_label_indices == k].mean(axis=0)
+            for k in range(self.num_clusters)
+        ]
         self.cluster_centres = np.stack(cluster_centres)
         self.lineages: Union[list[Lineage], None] = None
         self.cluster_lineages = None
@@ -109,7 +121,9 @@ class Slingshot:
         self.distances = params["distances"]
 
     def save_params(self, filepath):
-        params = dict(curves=self.curves, cell_weights=self.cell_weights, distances=self.distances)
+        params = dict(
+            curves=self.curves, cell_weights=self.cell_weights, distances=self.distances
+        )
         np.save(filepath, params)
 
     def _set_debug_axes(self, axes):
@@ -119,21 +133,35 @@ class Slingshot:
         self.debug_plot_avg = axes is not None
 
     def construct_mst(self, start_node):
-        emp_covs = np.stack([np.cov(self.data[self.cluster_label_indices == i].T) for i in range(self.num_clusters)])
+        emp_covs = np.stack(
+            [
+                np.cov(self.data[self.cluster_label_indices == i].T)
+                for i in range(self.num_clusters)
+            ]
+        )
         dists = np.zeros((self.num_clusters, self.num_clusters))
         for i in range(self.num_clusters):
             for j in range(i, self.num_clusters):
-                dist = mahalanobis(self.cluster_centres[i], self.cluster_centres[j], emp_covs[i], emp_covs[j])
+                dist = mahalanobis(
+                    self.cluster_centres[i],
+                    self.cluster_centres[j],
+                    emp_covs[i],
+                    emp_covs[j],
+                )
                 dists[i, j] = dist
                 dists[j, i] = dist
 
-        mst_dists = np.delete(np.delete(dists, self.end_nodes, axis=0), self.end_nodes, axis=1)
+        mst_dists = np.delete(
+            np.delete(dists, self.end_nodes, axis=0), self.end_nodes, axis=1
+        )
         if self.is_restricted:
             self.mst = restricted_minimum_spanning_tree(mst_dists)
         else:
             self.mst = minimum_spanning_tree(mst_dists)
         tree = self.mst
-        index_mapping = np.array([c for c in range(self.num_clusters - len(self.end_nodes))])
+        index_mapping = np.array(
+            [c for c in range(self.num_clusters - len(self.end_nodes))]
+        )
         for i, end_node in enumerate(self.end_nodes):
             index_mapping[end_node - i :] += 1
 
@@ -166,8 +194,14 @@ class Slingshot:
             self.plotter.clusters(self.debug_axes[0, 0], alpha=0.5)
             for root, kids in children.items():
                 for child in kids:
-                    start = [self.cluster_centres[root][0], self.cluster_centres[child][0]]
-                    end = [self.cluster_centres[root][1], self.cluster_centres[child][1]]
+                    start = [
+                        self.cluster_centres[root][0],
+                        self.cluster_centres[child][0],
+                    ]
+                    end = [
+                        self.cluster_centres[root][1],
+                        self.cluster_centres[child][1],
+                    ]
                     self.debug_axes[0, 0].plot(start, end, c="black")
             self.debug_plot_mst = False
 
@@ -180,7 +214,8 @@ class Slingshot:
             self.get_lineages()
             self.construct_initial_curves()
             self.cell_weights = [
-                self.cluster_labels_onehot[:, self.lineages[l].clusters].sum(axis=1) for l in range(len(self.lineages))
+                self.cluster_labels_onehot[:, self.lineages[l].clusters].sum(axis=1)
+                for l in range(len(self.lineages))
             ]
             self.cell_weights = np.stack(self.cell_weights, axis=1)
 
@@ -191,12 +226,18 @@ class Slingshot:
 
             for l_idx, lineage in enumerate(self.lineages):
                 curve = self.curves[l_idx]
-                min_time = np.min(curve.pseudotimes_interp[self.cell_weights[:, l_idx] > 0])
+                min_time = np.min(
+                    curve.pseudotimes_interp[self.cell_weights[:, l_idx] > 0]
+                )
                 curve.pseudotimes_interp -= min_time
 
-            shrinkage_percentages, cluster_children, cluster_avg_curves = self.avg_curves()
+            shrinkage_percentages, cluster_children, cluster_avg_curves = (
+                self.avg_curves()
+            )
 
-            self.shrink_curves(cluster_children, shrinkage_percentages, cluster_avg_curves)
+            self.shrink_curves(
+                cluster_children, shrinkage_percentages, cluster_avg_curves
+            )
 
             self.debug_plot_lineages = False
             self.debug_plot_avg = False
@@ -213,12 +254,16 @@ class Slingshot:
         for l_idx, lineage in enumerate(self.lineages):
             p = np.stack(self.cluster_centres[lineage.clusters])
 
-            cell_mask = np.logical_or.reduce(np.array([self.cluster_label_indices == k for k in lineage]))
+            cell_mask = np.logical_or.reduce(
+                np.array([self.cluster_label_indices == k for k in lineage])
+            )
             cells_involved = self.data[cell_mask]
 
             curve = PrincipalCurve(k=3)
             curve.project_to_curve(cells_involved, points=p)
-            d_sq, dist = curve.project_to_curve(self.data, points=curve.points_interp[curve.order])
+            d_sq, dist = curve.project_to_curve(
+                self.data, points=curve.points_interp[curve.order]
+            )
             distances.append(d_sq)
 
             piecewise_linear.append(curve)
@@ -239,7 +284,10 @@ class Slingshot:
                 return recurse_branches(path + [v], tree[v][0])
             else:
                 branch_clusters.append(v)
-                return [recurse_branches(path + [v], tree[v][i]) for i in range(num_children)]
+                return [
+                    recurse_branches(path + [v], tree[v][i])
+                    for i in range(num_children)
+                ]
 
         def flatten(li):
             if li[-1] is None:
@@ -278,20 +326,30 @@ class Slingshot:
             #     knot_size=len(lineage) * 2
             # )
             if self.debug_plot_lineages:
-                cell_mask = np.logical_or.reduce(np.array([self.cluster_label_indices == k for k in lineage]))
+                cell_mask = np.logical_or.reduce(
+                    np.array([self.cluster_label_indices == k for k in lineage])
+                )
                 cells_involved = self.data[cell_mask]
-                self.debug_axes[0, 1].scatter(cells_involved[:, 0], cells_involved[:, 1], s=2, alpha=0.5)
+                self.debug_axes[0, 1].scatter(
+                    cells_involved[:, 0], cells_involved[:, 1], s=2, alpha=0.5
+                )
                 alphas = curve.pseudotimes_interp
                 alphas = (alphas - alphas.min()) / (alphas.max() - alphas.min())
                 for i in np.random.permutation(self.data.shape[0])[:50]:
                     path_from = (self.data[i][0], curve.points_interp[i][0])
                     path_to = (self.data[i][1], curve.points_interp[i][1])
-                    self.debug_axes[0, 1].plot(path_from, path_to, c="black", alpha=alphas[i])
+                    self.debug_axes[0, 1].plot(
+                        path_from, path_to, c="black", alpha=alphas[i]
+                    )
                 self.debug_axes[0, 1].plot(
-                    curve.points_interp[curve.order, 0], curve.points_interp[curve.order, 1], label=str(lineage)
+                    curve.points_interp[curve.order, 0],
+                    curve.points_interp[curve.order, 1],
+                    label=str(lineage),
                 )
 
-            d_sq, dist = curve.project_to_curve(self.data, curve.points_interp[curve.order])
+            d_sq, dist = curve.project_to_curve(
+                self.data, curve.points_interp[curve.order]
+            )
             distances.append(d_sq)
         self.distances = distances
         if self.debug_plot_lineages:
@@ -300,7 +358,8 @@ class Slingshot:
     def calculate_cell_weights(self):
         """TODO: annotate, this is a translation from R"""
         cell_weights = [
-            self.cluster_labels_onehot[:, self.lineages[l].clusters].sum(axis=1) for l in range(len(self.lineages))
+            self.cluster_labels_onehot[:, self.lineages[l].clusters].sum(axis=1)
+            for l in range(len(self.lineages))
         ]
         cell_weights = np.stack(cell_weights, axis=1)
 
@@ -382,7 +441,9 @@ class Slingshot:
             self.debug_axes[1, 0].legend()
         return shrinkage_percentages, cluster_children, cluster_avg_curves
 
-    def shrink_curves(self, cluster_children, shrinkage_percentages, cluster_avg_curves):
+    def shrink_curves(
+        self, cluster_children, shrinkage_percentages, cluster_avg_curves
+    ):
         """
         Starting at root, shrink curves for each branch
 
@@ -401,7 +462,9 @@ class Slingshot:
             if self.debug_level > 0:
                 print(f"Shrinking branch @{k} with curves:", branch_curves)
 
-            self.shrink_branch_curves(branch_curves, cluster_avg_curve, shrinkage_percent)
+            self.shrink_branch_curves(
+                branch_curves, cluster_avg_curve, shrinkage_percent
+            )
 
     def shrink_branch_curves(self, branch_curves, avg_curve, shrinkage_percent):
         """
@@ -455,7 +518,9 @@ class Slingshot:
         num_cells = branch_curves[0].points_interp.shape[0]
         num_dims_reduced = branch_curves[0].points_interp.shape[1]
 
-        branch_s_interps = np.stack([c.pseudotimes_interp for c in branch_curves], axis=1)
+        branch_s_interps = np.stack(
+            [c.pseudotimes_interp for c in branch_curves], axis=1
+        )
         max_shared_pseudotime = branch_s_interps.max(axis=0).min()
         combined_pseudotime = np.linspace(0, max_shared_pseudotime, num_cells)
         curves_dense = list()
@@ -478,10 +543,21 @@ class Slingshot:
         avg_curve = PrincipalCurve()
         avg_curve.project_to_curve(self.data, points=avg)
         if self.debug_plot_avg:
-            self.debug_axes[1, 0].plot(avg[:, 0], avg[:, 1], c="blue", linestyle="--", label="average", alpha=0.7)
+            self.debug_axes[1, 0].plot(
+                avg[:, 0],
+                avg[:, 1],
+                c="blue",
+                linestyle="--",
+                label="average",
+                alpha=0.7,
+            )
             _, p_interp, order = avg_curve.unpack_params()
             self.debug_axes[1, 0].plot(
-                p_interp[order, 0], p_interp[order, 1], c="red", label="data projected", alpha=0.7
+                p_interp[order, 0],
+                p_interp[order, 1],
+                c="red",
+                label="data projected",
+                alpha=0.7,
             )
 
         return avg_curve
@@ -491,7 +567,9 @@ class Slingshot:
         pseudotime = np.zeros_like(self.curves[0].pseudotimes_interp)
         for l_idx, lineage in enumerate(self.lineages):
             curve = self.curves[l_idx]
-            cell_mask = np.logical_or.reduce(np.array([self.cluster_label_indices == k for k in lineage]))
+            cell_mask = np.logical_or.reduce(
+                np.array([self.cluster_label_indices == k for k in lineage])
+            )
             pseudotime[cell_mask] = curve.pseudotimes_interp[cell_mask]
         return pseudotime
 

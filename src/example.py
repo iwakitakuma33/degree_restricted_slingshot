@@ -10,20 +10,7 @@ from sklearn.cluster import KMeans
 import pyslingshot.img_util as img_util
 
 
-# adata = cs.hf.read(
-#     "/Users/iwakitakuma/study/degree_restricted_slingshot/src/data/cospar/data.h5ad"
-# )
-# data = adata.obsm["X_emb"]
-# data = np.load(
-#     "/Users/iwakitakuma/study/degree_restricted_slingshot/src/data/MOSCOT/data.npy"
-# )
-# data = np.load(
-#     "/Users/iwakitakuma/study/degree_restricted_slingshot/src/data/scSTEM/data.npy"
-# )
-data = np.load(
-    "/Users/iwakitakuma/study/degree_restricted_slingshot/src/data/monocle/data.npy"
-)
-
+data = cs.hf.read("your_path/degree_restricted_slingshot_data/data/cospar/data.npy")
 
 X, Y = data[:, 0], data[:, 1]
 VAR_X = np.var(X)
